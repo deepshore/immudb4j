@@ -386,6 +386,57 @@ public class ImmuClient {
         return nparams;
     }
 
+    /**
+     * Performs a SQL query WITHOUT requiring an active transaction.
+     * This method uses the streaming SQLQuery gRPC call instead of TxSQLQuery,
+     * allowing access to full database history including HISTORY OF queries.
+     * 
+     * Use this method when you need to query historical data with HISTORY OF
+     * that spans beyond the current transaction snapshot.
+     * 
+     * @param stmt   the SQL query to be evaluated
+     * @param params the positional parameters for SQL statement evaluation
+     * 
+     * @return the query resultset
+     * 
+     * @throws SQLException if the cause of the error is sql-related
+     */
+    public SQLQueryResult sqlQueryWithoutTx(String stmt, SQLValue... params) throws SQLException {
+        return sqlQueryWithoutTx(stmt, sqlNameParams(params));
+    }
+
+    /**
+     * Performs a SQL query WITHOUT requiring an active transaction.
+     * This method uses the streaming SQLQuery gRPC call instead of TxSQLQuery,
+     * allowing access to full database history including HISTORY OF queries.
+     * 
+     * Use this method when you need to query historical data with HISTORY OF
+     * that spans beyond the current transaction snapshot.
+     * 
+     * @param stmt   the SQL query to be evaluated
+     * @param params the named parameters for SQL statement evaluation
+     * 
+     * @return the query resultset
+     * 
+     * @throws SQLException if the cause of the error is sql-related
+     */
+    public synchronized SQLQueryResult sqlQueryWithoutTx(String stmt, Map<String, SQLValue> params) throws SQLException {
+        if (session == null) {
+            throw new IllegalStateException("no open session");
+        }
+
+        final ImmudbProto.SQLQueryRequest req = ImmudbProto.SQLQueryRequest.newBuilder()
+                .setSql(stmt)
+                .addAllParams(sqlEncodeParams(params))
+                .setAcceptStream(true)
+                .build();
+
+        // Use SQLQuery (streaming) instead of TxSQLQuery (transaction-based)
+        // This allows access to full history including HISTORY OF queries
+        Iterator<io.codenotary.immudb.ImmudbProto.SQLQueryResult> it = blockingStub.sQLQuery(req);
+        return new SQLQueryResult(it);
+    }
+
     private Iterable<NamedParam> sqlEncodeParams(Map<String, SQLValue> params) {
         List<ImmudbProto.NamedParam> nparams = new ArrayList<>();
 
