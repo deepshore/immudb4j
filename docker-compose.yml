@@ -1,0 +1,12 @@
+services:
+  immudb:
+    image: codenotary/immudb:latest
+    ports:
+      - "3322:3322"
+      - "9497:9497"
+    healthcheck:
+      test: ["CMD", "immuadmin", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
