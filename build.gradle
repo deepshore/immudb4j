@@ -82,6 +82,10 @@ java {
     withSourcesJar()
 }
 
+// Ensure sourcesJar and javadocJar run after protobuf generation
+tasks.named('sourcesJar') { dependsOn 'generateProto' }
+tasks.named('javadocJar') { dependsOn 'generateProto' }
+
 repositories {
     mavenCentral()
 }
@@ -241,7 +245,9 @@ publishing {
         }
     }
 
-    signing {
-        sign publishing.publications.gpr
-    }
+}
+
+signing {
+    required { !version.toString().endsWith('-SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
+    sign publishing.publications.gpr
 }
