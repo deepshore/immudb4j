@@ -86,6 +86,10 @@ java {
 tasks.named('sourcesJar') { dependsOn 'generateProto' }
 tasks.named('javadocJar') { dependsOn 'generateProto' }
 
+javadoc {
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
 repositories {
     mavenCentral()
 }
