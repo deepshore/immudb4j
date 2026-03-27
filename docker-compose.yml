@@ -1,6 +1,6 @@
 services:
   immudb:
-    image: codenotary/immudb:latest
+    image: codenotary/immudb:1.10-bullseye-slim
     ports:
       - "3322:3322"
       - "9497:9497"
