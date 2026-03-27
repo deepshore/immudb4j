@@ -28,7 +28,7 @@ buildscript {
 plugins {
     id 'java-library'
     id 'jacoco'
-    id 'com.github.kt3k.coveralls' version '2.10.2'
+    id 'com.github.nbaztec.coveralls-jacoco' version '1.2.20'
     id 'com.google.protobuf' version '0.8.18'
 }
 
@@ -161,8 +161,8 @@ jacocoTestReport {
     }
 }
 
-coveralls {
-    jacocoReportPath 'build/reports/jacoco/test/jacocoTestReport.xml'
+coverallsJacoco {
+    reportPath = 'build/reports/jacoco/test/jacocoTestReport.xml'
 }
 
 

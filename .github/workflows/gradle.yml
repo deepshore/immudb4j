@@ -28,4 +28,4 @@ jobs:
     - name: Coveralls
       env:
         COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-      run: ./gradlew jacocoTestReport coveralls
+      run: ./gradlew jacocoTestReport coverallsJacoco
