@@ -178,6 +178,18 @@ publishing {
         }
 
         maven {
+            name = "SonatypeCentral"
+            def isSnapshot = project.version.toString().endsWith('-SNAPSHOT')
+            url = uri(isSnapshot
+                    ? "https://central.sonatype.com/repository/maven-snapshots/"
+                    : "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/")
+            credentials {
+                username = project.findProperty("sonatypeCentralUsername") ?: System.getenv("SONATYPE_CENTRAL_USERNAME")
+                password = project.findProperty("sonatypeCentralPassword") ?: System.getenv("SONATYPE_CENTRAL_PASSWORD")
+            }
+        }
+
+        maven {
             name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/codenotary/immudb4j")
             credentials {

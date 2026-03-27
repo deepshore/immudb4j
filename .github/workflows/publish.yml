@@ -1,0 +1,49 @@
+name: Publish to Sonatype Central
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  release:
+    types: [ published ]
+
+jobs:
+  publish:
+    # Only run on the fork, not on upstream codenotary/immudb4j
+    if: github.repository == 'deepshore/immudb4j'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Set snapshot version
+      if: github.event_name == 'push'
+      run: |
+        VERSION=$(grep '^version' build.gradle | sed "s/version = '\\(.*\\)'/\\1/")
+        if [[ "$VERSION" != *-SNAPSHOT ]]; then
+          sed -i "s/version = '${VERSION}'/version = '${VERSION}-SNAPSHOT'/" build.gradle
+        fi
+
+    - name: Import GPG key
+      if: env.GPG_PRIVATE_KEY != ''
+      env:
+        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        echo "signing.gnupg.keyName=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
+        echo "signing.gnupg.passphrase=$GPG_PASSPHRASE" >> gradle.properties
+
+    - name: Publish
+      env:
+        SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
+        SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
+      run: ./gradlew publishGprPublicationToSonatypeCentralRepository
