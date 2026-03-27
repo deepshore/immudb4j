@@ -110,8 +110,18 @@ public class ImmuClient {
             return;
         }
 
+        // Cancel heartbeater first to prevent it from holding the lock
+        // during channel shutdown via a blocking keepAlive RPC.
+        cancelHeartBeat();
+
         if (session != null) {
-            closeSession();
+            try {
+                blockingStub.closeSession(Empty.getDefaultInstance());
+            } catch (Exception e) {
+                // Best-effort: server will reap the session after timeout.
+            } finally {
+                session = null;
+            }
         }
 
         try {
@@ -167,19 +177,29 @@ public class ImmuClient {
     }
 
     /**
-     * Closes the open database session
+     * Closes the open database session.
+     * This method is idempotent: calling it when no session is open is a no-op.
      */
     public synchronized void closeSession() {
         if (session == null) {
-            throw new IllegalStateException("no open session");
+            return;
         }
 
-        sessionHeartBeat.cancel();
+        cancelHeartBeat();
 
         try {
             blockingStub.closeSession(Empty.getDefaultInstance());
+        } catch (Exception e) {
+            // Best-effort: server will reap the session after timeout.
         } finally {
             session = null;
+        }
+    }
+
+    private void cancelHeartBeat() {
+        if (sessionHeartBeat != null) {
+            sessionHeartBeat.cancel();
+            sessionHeartBeat = null;
         }
     }
 
