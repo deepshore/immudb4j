@@ -55,13 +55,13 @@ public class TxTest extends ImmuClientIntegrationTest {
         try {
             immuClient.txById(txHdr.getId() + 1);
             Assert.fail("Failed at txById.");
-        } catch (TxNotFoundException _) {
+        } catch (TxNotFoundException ignored) {
         }
 
         try {
             immuClient.verifiedTxById(txHdr.getId() + 1);
             Assert.fail("Failed at verifiedTxById.");
-        } catch (TxNotFoundException _) {
+        } catch (TxNotFoundException ignored) {
         }
 
         immuClient.closeSession();
