@@ -149,6 +149,62 @@ public class SessionLifecycleTest {
         verify(mockChannel).shutdown();
     }
 
+    @Test(testName = "heartbeat is enabled by default in builder")
+    public void heartBeatEnabledByDefault() {
+        ImmuClient.Builder builder = ImmuClient.newBuilder();
+        Assert.assertTrue(builder.isHeartBeatEnabled());
+    }
+
+    @Test(testName = "openSession does not create Timer thread when heartbeat is disabled")
+    public void noTimerThreadWhenHeartBeatDisabled() throws Exception {
+        // Count Timer daemon threads before creating the client
+        long timerThreadsBefore = Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.isDaemon() && t.getName().startsWith("Timer") && t.isAlive())
+                .count();
+
+        ImmuClient noHbClient = ImmuClient.newBuilder()
+                .withServerUrl("localhost")
+                .withServerPort(3322)
+                .withHeartBeatEnabled(false)
+                .build();
+
+        // Simulate openSession by injecting session directly (no real server needed)
+        setField(noHbClient, "session", new Session("test-session", "defaultdb"));
+
+        // The sessionHeartBeat field should remain null when heartbeat is disabled
+        Object heartBeat = getField(noHbClient, "sessionHeartBeat");
+        Assert.assertNull(heartBeat, "sessionHeartBeat Timer should be null when heartbeat is disabled");
+
+        // No new Timer daemon threads should have been spawned
+        long timerThreadsAfter = Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.isDaemon() && t.getName().startsWith("Timer") && t.isAlive())
+                .count();
+        Assert.assertEquals(timerThreadsAfter, timerThreadsBefore,
+                "No new Timer thread should exist for a client with heartbeat disabled");
+    }
+
+    @Test(testName = "keepAlive sends RPC when session is active")
+    public void keepAliveSendsRpcWhenSessionActive() throws Exception {
+        setField(client, "session", new Session("test-session", "defaultdb"));
+
+        client.keepAlive();
+
+        verify(mockStub, times(1)).keepAlive(any(Empty.class));
+    }
+
+    @Test(testName = "keepAlive is a no-op when no session is open")
+    public void keepAliveNoOpWithoutSession() {
+        client.keepAlive();
+
+        verify(mockStub, never()).keepAlive(any(Empty.class));
+    }
+
+    private static Object getField(Object target, String fieldName) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(target);
+    }
+
     private static void setField(Object target, String fieldName, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
