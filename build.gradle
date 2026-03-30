@@ -252,6 +252,7 @@ publishing {
 }
 
 signing {
-    required { !version.toString().endsWith('-SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
+    required { !version.toString().endsWith('-SNAPSHOT') && gradle.taskGraph.allTasks.any { it.name.startsWith('publish') } }
+    useGpgCmd()
     sign publishing.publications.gpr
 }
