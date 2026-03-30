@@ -37,11 +37,14 @@ jobs:
       env:
         GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      if: env.GPG_PRIVATE_KEY != ''
       run: |
-        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-        echo "signing.gnupg.keyName=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
-        echo "signing.gnupg.passphrase=$GPG_PASSPHRASE" >> gradle.properties
+        if [ -n "$GPG_PRIVATE_KEY" ]; then
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "signing.gnupg.keyName=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
+          echo "signing.gnupg.passphrase=$GPG_PASSPHRASE" >> gradle.properties
+        else
+          echo "GPG key not configured, skipping signing setup"
+        fi
 
     - name: Publish
       env:
