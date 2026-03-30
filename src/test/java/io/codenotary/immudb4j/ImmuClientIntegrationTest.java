@@ -17,6 +17,7 @@ package io.codenotary.immudb4j;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,27 @@ public abstract class ImmuClientIntegrationTest {
     statesDir = Files.createTempDirectory("immudb_states").toFile();
     statesDir.deleteOnExit();
 
+    rebuildClient();
+  }
+
+  @BeforeMethod
+  public void ensureClient() throws IOException {
+    // If a prior test called shutdown(), rebuild the client.
+    // Note: isShutdown() returns false when channel is null (post-shutdown),
+    // so we also try opening/closing to detect a dead client.
+    if (immuClient == null) {
+      rebuildClient();
+    }
+    // If a prior test left a session open, close it.
+    immuClient.closeSession();
+  }
+
+  @AfterClass
+  public static void afterClass() {
+    immuClient.closeSession();
+  }
+
+  protected static void rebuildClient() throws IOException {
     FileImmuStateHolder stateHolder = FileImmuStateHolder.newBuilder()
             .withStatesFolder(statesDir.getAbsolutePath())
             .build();
@@ -41,11 +63,6 @@ public abstract class ImmuClientIntegrationTest {
             .withServerUrl("localhost")
             .withServerPort(3322)
             .build();
-  }
-
-  @AfterClass
-  public static void afterClass() throws InterruptedException {
-      immuClient.shutdown();
   }
 
 }

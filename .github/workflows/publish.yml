@@ -1,0 +1,79 @@
+name: Publish to Sonatype Central
+
+on:
+  pull_request:
+    branches: [ master, main, develop ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    # Only run on the fork, not on upstream codenotary/immudb4j
+    if: github.repository == 'deepshore/immudb4j'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Set snapshot version
+      if: github.event_name == 'push'
+      run: |
+        VERSION=$(grep '^version' build.gradle | sed "s/version = '\\(.*\\)'/\\1/")
+        if [[ "$VERSION" != *-SNAPSHOT ]]; then
+          sed -i "s/version = '${VERSION}'/version = '${VERSION}-SNAPSHOT'/" build.gradle
+        fi
+
+    - name: Import GPG key
+      if: env.GPG_PRIVATE_KEY != ''
+      env:
+        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        echo "signing.gnupg.keyName=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
+        echo "signing.gnupg.passphrase=$GPG_PASSPHRASE" >> gradle.properties
+
+    - name: Publish
+      env:
+        SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
+        SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
+      run: ./gradlew publishGprPublicationToSonatypeCentralRepository
+
+    - name: Add artifact links to release
+      if: github.event_name == 'release'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION="${{ github.event.release.tag_name }}"
+        VERSION="${VERSION#v}"
+        GROUP_PATH="io/github/deepshore"
+        CENTRAL_URL="https://central.sonatype.com/artifact/io.github.deepshore/immudb4j/${VERSION}"
+        REPO_URL="https://repo1.maven.org/maven2/${GROUP_PATH}/immudb4j/${VERSION}"
+
+        EXISTING_BODY=$(gh release view "${{ github.event.release.tag_name }}" --json body -q .body)
+        ARTIFACT_LINKS=$(cat <<'LINKS'
+
+        ---
+        **Published Artifacts**
+        - [Maven Central](CENTRAL_URL_PLACEHOLDER)
+        - [immudb4j-VERSION_PLACEHOLDER.jar](REPO_URL_PLACEHOLDER/immudb4j-VERSION_PLACEHOLDER.jar)
+        - [immudb4j-VERSION_PLACEHOLDER-javadoc.jar](REPO_URL_PLACEHOLDER/immudb4j-VERSION_PLACEHOLDER-javadoc.jar)
+        - [immudb4j-VERSION_PLACEHOLDER-sources.jar](REPO_URL_PLACEHOLDER/immudb4j-VERSION_PLACEHOLDER-sources.jar)
+        LINKS
+        )
+        ARTIFACT_LINKS="${ARTIFACT_LINKS//CENTRAL_URL_PLACEHOLDER/$CENTRAL_URL}"
+        ARTIFACT_LINKS="${ARTIFACT_LINKS//REPO_URL_PLACEHOLDER/$REPO_URL}"
+        ARTIFACT_LINKS="${ARTIFACT_LINKS//VERSION_PLACEHOLDER/$VERSION}"
+
+        gh release edit "${{ github.event.release.tag_name }}" \
+          --notes "${EXISTING_BODY}${ARTIFACT_LINKS}"

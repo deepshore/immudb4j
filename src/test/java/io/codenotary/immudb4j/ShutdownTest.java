@@ -19,17 +19,39 @@ import io.grpc.StatusRuntimeException;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class ShutdownTest extends ImmuClientIntegrationTest {
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+
+/**
+ * This test does NOT extend ImmuClientIntegrationTest because it calls
+ * shutdown() which would destroy the shared client used by all other tests.
+ */
+public class ShutdownTest {
 
   @Test(testName = "Login attempt after shutdown", expectedExceptions = StatusRuntimeException.class)
-  public void t1() throws InterruptedException {
-    Assert.assertFalse(immuClient.isShutdown());
+  public void t1() throws InterruptedException, IOException {
+    File statesDir = Files.createTempDirectory("immudb_states").toFile();
+    statesDir.deleteOnExit();
 
-    immuClient.openSession("defaultdb", "immudb", "immudb");
+    FileImmuStateHolder stateHolder = FileImmuStateHolder.newBuilder()
+            .withStatesFolder(statesDir.getAbsolutePath())
+            .build();
 
-    immuClient.shutdown();
-    
-    immuClient.openSession("defaultdb", "immudb", "immudb");
+    ImmuClient client = ImmuClient.newBuilder()
+            .withStateHolder(stateHolder)
+            .withServerUrl("localhost")
+            .withServerPort(3322)
+            .build();
+
+    Assert.assertFalse(client.isShutdown());
+
+    client.openSession("defaultdb", "immudb", "immudb");
+
+    client.shutdown();
+
+    // This should throw StatusRuntimeException because channel is shut down
+    client.openSession("defaultdb", "immudb", "immudb");
   }
 
 }

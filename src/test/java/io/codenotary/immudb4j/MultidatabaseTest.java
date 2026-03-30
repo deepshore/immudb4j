@@ -104,14 +104,16 @@ public class MultidatabaseTest extends ImmuClientIntegrationTest {
     public void t6() {
         immuClient.openSession("defaultdb", "immudb", "immudb");
 
-        immuClient.createDatabase("manageddb");
+        String testDb = "manageddb_" + System.currentTimeMillis();
 
-        immuClient.unloadDatabase("manageddb");
+        immuClient.createDatabase(testDb);
 
-        immuClient.deleteDatabase("manageddb");
+        immuClient.unloadDatabase(testDb);
+
+        immuClient.deleteDatabase(testDb);
 
         try {
-            immuClient.loadDatabase("manageddb");
+            immuClient.loadDatabase(testDb);
             Assert.fail("exception expected");
         } catch (StatusRuntimeException e) {
             Assert.assertTrue(e.getMessage().contains("database does not exist"));
