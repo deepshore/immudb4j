@@ -78,19 +78,19 @@ public class BasicImmuClientTest extends ImmuClientIntegrationTest {
         try {
             immuClient.verifiedGet("non-existent-key");
             Assert.fail("Failed at verifiedGet.");
-        } catch (KeyNotFoundException _) {
+        } catch (KeyNotFoundException ignored) {
         }
 
         try {
             immuClient.getSinceTx("non-existent-key", 1);
             Assert.fail("Failed at getSinceTx.");
-        } catch (KeyNotFoundException _) {
+        } catch (KeyNotFoundException ignored) {
         }
 
         try {
             immuClient.verifiedGetSinceTx("non-existent-key", 1);
             Assert.fail("Failed at verifiedGetSinceTx.");
-        } catch (KeyNotFoundException _) {
+        } catch (KeyNotFoundException ignored) {
         }
 
         try {

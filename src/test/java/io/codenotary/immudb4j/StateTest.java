@@ -21,6 +21,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.security.PublicKey;
 import java.util.Objects;
 
@@ -70,14 +71,15 @@ public class StateTest extends ImmuClientIntegrationTest {
     }
 
     @Test(testName = "currentState with server signature checking, but only on the client side")
-    public void t3() {
+    public void t3() throws IOException {
         // Provisioning the client side with the public key file.
         ClassLoader classLoader = getClass().getClassLoader();
         File publicKeyFile = new File(Objects.requireNonNull(classLoader.getResource(publicKeyResource)).getFile());
 
-        // Recreating an client instance with the server signing key.
+        // Recreating a client instance with the server signing key.
+        ImmuClient signingClient;
         try {
-            immuClient = ImmuClient.newBuilder()
+            signingClient = ImmuClient.newBuilder()
                     .withServerUrl("localhost")
                     .withServerPort(3322)
                     .withServerSigningKey(publicKeyFile.getAbsolutePath())
@@ -89,10 +91,10 @@ public class StateTest extends ImmuClientIntegrationTest {
             return;
         }
 
-        immuClient.openSession("defaultdb", "immudb", "immudb");
+        signingClient.openSession("defaultdb", "immudb", "immudb");
 
         try {
-            immuClient.currentState();
+            signingClient.currentState();
             Assert.fail(
                     "Did not fail as it should in this case when the signingKey is provisioned only on the client side");
         } catch (VerificationException ignored) {
@@ -100,9 +102,9 @@ public class StateTest extends ImmuClientIntegrationTest {
             // state signature feature active.
             // (this feature is active when starting it like: `immudb --signingKey
             // test_private_key.pem`).
+        } finally {
+            signingClient.closeSession();
         }
-
-        immuClient.closeSession();
     }
 
     @Test(testName = "currentState with server signature checking", description = "Testing `checkSignature` (indirectly, through `currentState`), "

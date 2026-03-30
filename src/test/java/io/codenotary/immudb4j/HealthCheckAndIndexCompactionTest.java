@@ -59,8 +59,9 @@ public class HealthCheckAndIndexCompactionTest extends ImmuClientIntegrationTest
         }
     }
 
-    @Test(testName = "openSession with no open session", expectedExceptions = IllegalStateException.class)
+    @Test(testName = "closeSession with no open session is a no-op")
     public void t4() {
+        // closeSession is idempotent: calling it without an open session should not throw.
         immuClient.closeSession();
     }
 

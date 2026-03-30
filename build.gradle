@@ -28,7 +28,7 @@ buildscript {
 plugins {
     id 'java-library'
     id 'jacoco'
-    id 'com.github.kt3k.coveralls' version '2.10.2'
+    id 'com.github.nbaztec.coveralls-jacoco' version '1.2.20'
     id 'com.google.protobuf' version '0.8.18'
 }
 
@@ -38,15 +38,15 @@ apply plugin: 'idea'
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
 
-group = 'io.codenotary'
+group = 'io.github.deepshore'
 archivesBaseName = 'immudb4j'
-version = '1.0.1'
+version = '1.5.1'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 def protocVersion = '3.19.4'
-def grpcVersion = '1.55.1'
+def grpcVersion = '1.80.0'
 
 protobuf {
     protoc {
@@ -82,6 +82,14 @@ java {
     withSourcesJar()
 }
 
+// Ensure sourcesJar and javadocJar run after protobuf generation
+tasks.named('sourcesJar') { dependsOn 'generateProto' }
+tasks.named('javadocJar') { dependsOn 'generateProto' }
+
+javadoc {
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
 repositories {
     mavenCentral()
 }
@@ -115,7 +123,8 @@ dependencies {
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.8.9'
 
-    testImplementation 'org.testng:testng:6.14.3'
+    testImplementation 'org.testng:testng:7.5.1'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
     
     implementation 'javax.annotation:javax.annotation-api:1.2-b01'
 }
@@ -142,7 +151,7 @@ test {
 
 test.finalizedBy([jacocoTestReport])
 
-task integrationTest(type: Test) {
+tasks.register('integrationTest', Test) {
     testClassesDirs = sourceSets.integrationTest.output.classesDirs
     classpath = sourceSets.integrationTest.runtimeClasspath
 }
@@ -160,8 +169,8 @@ jacocoTestReport {
     }
 }
 
-coveralls {
-    jacocoReportPath 'build/reports/jacoco/test/jacocoTestReport.xml'
+coverallsJacoco {
+    reportPath = 'build/reports/jacoco/test/jacocoTestReport.xml'
 }
 
 
@@ -173,6 +182,18 @@ publishing {
             credentials {
                 username = project.findProperty("ossrhUsername") ?: System.getenv("MAVEN_USERNAME")
                 password = project.findProperty("ossrhPassword") ?: System.getenv("MAVEN_PASSWORD")
+            }
+        }
+
+        maven {
+            name = "SonatypeCentral"
+            def isSnapshot = project.version.toString().endsWith('-SNAPSHOT')
+            url = uri(isSnapshot
+                    ? "https://central.sonatype.com/repository/maven-snapshots/"
+                    : "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/")
+            credentials {
+                username = project.findProperty("sonatypeCentralUsername") ?: System.getenv("SONATYPE_CENTRAL_USERNAME")
+                password = project.findProperty("sonatypeCentralPassword") ?: System.getenv("SONATYPE_CENTRAL_PASSWORD")
             }
         }
 
@@ -228,7 +249,9 @@ publishing {
         }
     }
 
-    signing {
-        sign publishing.publications.gpr
-    }
+}
+
+signing {
+    required { !version.toString().endsWith('-SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
+    sign publishing.publications.gpr
 }

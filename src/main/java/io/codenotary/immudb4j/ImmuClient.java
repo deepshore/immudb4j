@@ -68,6 +68,7 @@ public class ImmuClient {
     private final PublicKey serverSigningKey;
     private final ImmuStateHolder stateHolder;
     private long keepAlivePeriod;
+    private boolean heartBeatEnabled;
     private int chunkSize;
 
     private ManagedChannel channel;
@@ -82,6 +83,7 @@ public class ImmuClient {
         stateHolder = builder.getStateHolder();
         serverSigningKey = builder.getServerSigningKey();
         keepAlivePeriod = builder.getKeepAlivePeriod();
+        heartBeatEnabled = builder.isHeartBeatEnabled();
         chunkSize = builder.getChunkSize();
 
         channel = ManagedChannelBuilder
@@ -110,8 +112,18 @@ public class ImmuClient {
             return;
         }
 
+        // Cancel heartbeater first to prevent it from holding the lock
+        // during channel shutdown via a blocking keepAlive RPC.
+        cancelHeartBeat();
+
         if (session != null) {
-            closeSession();
+            try {
+                blockingStub.closeSession(Empty.getDefaultInstance());
+            } catch (Exception e) {
+                // Best-effort: server will reap the session after timeout.
+            } finally {
+                session = null;
+            }
         }
 
         try {
@@ -148,38 +160,59 @@ public class ImmuClient {
 
         session = new Session(resp.getSessionID(), database);
 
-        sessionHeartBeat = new Timer(true);
+        if (heartBeatEnabled) {
+            sessionHeartBeat = new Timer(true);
 
-        sessionHeartBeat.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    synchronized (ImmuClient.this) {
-                        if (session != null) {
-                            blockingStub.keepAlive(Empty.getDefaultInstance());
-                        }
+            sessionHeartBeat.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    try {
+                        keepAlive();
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
-            }
-        }, 0, keepAlivePeriod);
+            }, 0, keepAlivePeriod);
+        }
     }
 
     /**
-     * Closes the open database session
+     * Closes the open database session.
+     * This method is idempotent: calling it when no session is open is a no-op.
      */
     public synchronized void closeSession() {
         if (session == null) {
-            throw new IllegalStateException("no open session");
+            return;
         }
 
-        sessionHeartBeat.cancel();
+        cancelHeartBeat();
 
         try {
             blockingStub.closeSession(Empty.getDefaultInstance());
+        } catch (Exception e) {
+            // Best-effort: server will reap the session after timeout.
         } finally {
             session = null;
+        }
+    }
+
+    /**
+     * Sends a keep-alive ping to the server for the current session.
+     * This is automatically called by the internal heartbeat timer unless
+     * heartbeat was disabled via {@link Builder#withHeartBeatEnabled(boolean)}.
+     * When heartbeat is disabled, call this method from your own scheduling
+     * mechanism (e.g. a connection pool) to keep the session alive.
+     */
+    public synchronized void keepAlive() {
+        if (session != null) {
+            blockingStub.keepAlive(Empty.getDefaultInstance());
+        }
+    }
+
+    private void cancelHeartBeat() {
+        if (sessionHeartBeat != null) {
+            sessionHeartBeat.cancel();
+            sessionHeartBeat = null;
         }
     }
 
@@ -2589,6 +2622,8 @@ public class ImmuClient {
 
         private long keepAlivePeriod;
 
+        private boolean heartBeatEnabled;
+
         private int chunkSize;
 
         private ImmuStateHolder stateHolder;
@@ -2598,6 +2633,7 @@ public class ImmuClient {
             serverPort = 3322;
             stateHolder = new SerializableImmuStateHolder();
             keepAlivePeriod = 60 * 1000; // 1 minute
+            heartBeatEnabled = true;
             chunkSize = 64 * 1024; // 64 * 1024 64 KiB
         }
 
@@ -2642,6 +2678,15 @@ public class ImmuClient {
 
         public Builder withKeepAlivePeriod(long keepAlivePeriod) {
             this.keepAlivePeriod = keepAlivePeriod;
+            return this;
+        }
+
+        public boolean isHeartBeatEnabled() {
+            return heartBeatEnabled;
+        }
+
+        public Builder withHeartBeatEnabled(boolean heartBeatEnabled) {
+            this.heartBeatEnabled = heartBeatEnabled;
             return this;
         }
 

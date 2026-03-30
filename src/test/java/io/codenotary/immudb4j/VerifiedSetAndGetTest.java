@@ -114,6 +114,8 @@ public class VerifiedSetAndGetTest extends ImmuClientIntegrationTest {
         immuClient.openSession("defaultdb", "immudb", "immudb");
 
         immuClient.verifiedGet("key1");
+
+        immuClient.closeSession();
     }
 
 }
