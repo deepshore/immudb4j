@@ -47,3 +47,32 @@ jobs:
         SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
         SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
       run: ./gradlew publishGprPublicationToSonatypeCentralRepository
+
+    - name: Add artifact links to release
+      if: github.event_name == 'release'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION="${{ github.event.release.tag_name }}"
+        VERSION="${VERSION#v}"
+        GROUP_PATH="io/github/deepshore"
+        CENTRAL_URL="https://central.sonatype.com/artifact/io.github.deepshore/immudb4j/${VERSION}"
+        REPO_URL="https://repo1.maven.org/maven2/${GROUP_PATH}/immudb4j/${VERSION}"
+
+        EXISTING_BODY=$(gh release view "${{ github.event.release.tag_name }}" --json body -q .body)
+        ARTIFACT_LINKS=$(cat <<'LINKS'
+
+        ---
+        **Published Artifacts**
+        - [Maven Central](CENTRAL_URL_PLACEHOLDER)
+        - [immudb4j-VERSION_PLACEHOLDER.jar](REPO_URL_PLACEHOLDER/immudb4j-VERSION_PLACEHOLDER.jar)
+        - [immudb4j-VERSION_PLACEHOLDER-javadoc.jar](REPO_URL_PLACEHOLDER/immudb4j-VERSION_PLACEHOLDER-javadoc.jar)
+        - [immudb4j-VERSION_PLACEHOLDER-sources.jar](REPO_URL_PLACEHOLDER/immudb4j-VERSION_PLACEHOLDER-sources.jar)
+        LINKS
+        )
+        ARTIFACT_LINKS="${ARTIFACT_LINKS//CENTRAL_URL_PLACEHOLDER/$CENTRAL_URL}"
+        ARTIFACT_LINKS="${ARTIFACT_LINKS//REPO_URL_PLACEHOLDER/$REPO_URL}"
+        ARTIFACT_LINKS="${ARTIFACT_LINKS//VERSION_PLACEHOLDER/$VERSION}"
+
+        gh release edit "${{ github.event.release.tag_name }}" \
+          --notes "${EXISTING_BODY}${ARTIFACT_LINKS}"
