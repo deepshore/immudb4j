@@ -46,11 +46,19 @@ jobs:
           echo "GPG key not configured, skipping signing setup"
         fi
 
-    - name: Publish
+    - name: Publish snapshot
+      if: github.event_name != 'release'
       env:
         SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
         SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
-      run: ./gradlew publishGprPublicationToSonatypeCentralRepository
+      run: ./gradlew publishToSonatype
+
+    - name: Publish release
+      if: github.event_name == 'release'
+      env:
+        SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
+        SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
+      run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository
 
     - name: Add artifact links to release
       if: github.event_name == 'release'

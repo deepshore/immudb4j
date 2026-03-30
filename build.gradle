@@ -30,6 +30,7 @@ plugins {
     id 'jacoco'
     id 'com.github.nbaztec.coveralls-jacoco' version '1.2.20'
     id 'com.google.protobuf' version '0.8.18'
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
 
 apply plugin: 'java'
@@ -185,17 +186,6 @@ publishing {
             }
         }
 
-        maven {
-            name = "SonatypeCentral"
-            def isSnapshot = project.version.toString().endsWith('-SNAPSHOT')
-            url = uri(isSnapshot
-                    ? "https://central.sonatype.com/repository/maven-snapshots/"
-                    : "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/")
-            credentials {
-                username = project.findProperty("sonatypeCentralUsername") ?: System.getenv("SONATYPE_CENTRAL_USERNAME")
-                password = project.findProperty("sonatypeCentralPassword") ?: System.getenv("SONATYPE_CENTRAL_PASSWORD")
-            }
-        }
 
         maven {
             name = "GitHubPackages"
@@ -255,4 +245,15 @@ signing {
     required { !version.toString().endsWith('-SNAPSHOT') && gradle.taskGraph.allTasks.any { it.name.startsWith('publish') } }
     useGpgCmd()
     sign publishing.publications.gpr
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+            username = project.findProperty("sonatypeCentralUsername") ?: System.getenv("SONATYPE_CENTRAL_USERNAME")
+            password = project.findProperty("sonatypeCentralPassword") ?: System.getenv("SONATYPE_CENTRAL_PASSWORD")
+        }
+    }
 }
