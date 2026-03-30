@@ -26,7 +26,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v4
 
     - name: Set snapshot version
-      if: github.event_name == 'push'
+      if: github.event_name != 'release'
       run: |
         VERSION=$(grep '^version' build.gradle | sed "s/version = '\\(.*\\)'/\\1/")
         if [[ "$VERSION" != *-SNAPSHOT ]]; then
@@ -34,20 +34,31 @@ jobs:
         fi
 
     - name: Import GPG key
-      if: env.GPG_PRIVATE_KEY != ''
       env:
         GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       run: |
-        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-        echo "signing.gnupg.keyName=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
-        echo "signing.gnupg.passphrase=$GPG_PASSPHRASE" >> gradle.properties
+        if [ -n "$GPG_PRIVATE_KEY" ]; then
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "signing.gnupg.keyName=${{ secrets.GPG_KEY_ID }}" >> gradle.properties
+          echo "signing.gnupg.passphrase=$GPG_PASSPHRASE" >> gradle.properties
+        else
+          echo "GPG key not configured, skipping signing setup"
+        fi
 
-    - name: Publish
+    - name: Publish snapshot
+      if: github.event_name != 'release'
       env:
         SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
         SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
-      run: ./gradlew publishGprPublicationToSonatypeCentralRepository
+      run: ./gradlew publishToSonatype
+
+    - name: Publish release
+      if: github.event_name == 'release'
+      env:
+        SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
+        SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
+      run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository
 
     - name: Add artifact links to release
       if: github.event_name == 'release'
